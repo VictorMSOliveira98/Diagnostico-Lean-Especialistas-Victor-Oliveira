@@ -1822,86 +1822,124 @@ function submitSurvey() {
 function exportResults(includeDiagnosis) {
   const rd = window._resultData || {};
   const now = new Date().toLocaleString('pt-BR');
-  const levelText = (rd.level && rd.level.label) ? rd.level.label.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27FF}]/gu, '').trim() : '';
   const scores = rd.scores || [];
-
-  let html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Diagnóstico Lean — ${userName}</title>
-<style>
-  body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#0f172a;}
-  h1{color:#003366;font-size:24px;margin-bottom:4px;}
-  h2{color:#1a5276;font-size:18px;margin-top:32px;border-bottom:2px solid #dde3ec;padding-bottom:8px;}
-  .badge{display:inline-block;background:#003366;color:#fff;padding:6px 16px;border-radius:100px;font-size:14px;font-weight:bold;margin:8px 0;}
-  table{width:100%;border-collapse:collapse;margin-top:12px;}
-  th{background:#003366;color:#fff;padding:10px 14px;text-align:left;font-size:13px;}
-  td{padding:9px 14px;border-bottom:1px solid #eef2f7;font-size:13px;}
-  tr:nth-child(even) td{background:#f5f7fa;}
-  .rec{background:#eef2f7;border-radius:8px;padding:10px 14px;margin:6px 0;font-size:13px;}
-  .rec::before{content:"→ ";color:#2e86c1;font-weight:bold;}
-  .footer{margin-top:40px;font-size:11px;color:#64748b;border-top:1px solid #eee;padding-top:12px;}
-  @media print{body{margin:20px;} .no-print{display:none;}}
-</style></head><body>`;
-
-  html += `<h1>Diagnóstico de Comportamento Lean</h1>
-<p style="color:#64748b;font-size:13px;">Paredes de Concreto Moldadas In Loco — PPGEC/UFS · Gerado em ${now}</p>
-<hr style="border:none;border-top:2px solid #003366;margin:12px 0 20px;">
-<h2>📋 Dados do Participante</h2>
-<table>
-  <tr><th>Campo</th><th>Resposta</th></tr>
-  <tr><td>Nome</td><td>${userName}</td></tr>
-  <tr><td>E-mail</td><td>${userEmail}</td></tr>
-  <tr><td>Formação</td><td>${userRole}</td></tr>
-  <tr><td>Escolaridade</td><td>${document.querySelector('input[name="escolaridade"]:checked')?.value || '—'}</td></tr>
-  <tr><td>Experiência</td><td>${document.getElementById('input-experiencia').value || '—'} anos</td></tr>
-  <tr><td>Áreas</td><td>${[...document.querySelectorAll('#cg-areas input[type=checkbox]:checked')].map(e=>e.value).join(', ') || '—'}</td></tr>
-  <tr><td>Setor</td><td>${document.querySelector('input[name="setor"]:checked')?.value || '—'}</td></tr>
-  <tr><td>Cidade</td><td>${document.getElementById('input-cidade').value || '—'}</td></tr>
-</table>`;
-
-  html += `<h2>📊 Resultado Geral</h2>
-<p>Pontuação Lean: <strong style="font-size:32px;color:#003366;">${rd.overall ?? '—'}/100</strong></p>
-<div class="badge">${levelText || rd.level?.label || '—'}</div>
-<h2>📈 Score por Dimensão</h2>
-<table>
-  <tr><th>Dimensão</th><th>Participante</th><th>Ref. Especialista</th></tr>`;
-
-  const groupNames = ['Definição do Trabalho','Medição do Trabalho','Comunicação','Direção e Motivação','Programação dos Trabalhos','Uso de Equipamentos','Cadeia Produtiva'];
+  const levelText = (rd.level && rd.level.label) ? rd.level.label.replace(/[^\w\s\-\/,().%]/g, '').trim() : '';
+  const groupNames = ['Definicao do Trabalho','Medicao do Trabalho','Comunicacao','Direcao e Motivacao','Programacao dos Trabalhos','Uso de Equipamentos','Cadeia Produtiva'];
+  const groupNamesDisplay = ['Definição do Trabalho','Medição do Trabalho','Comunicação','Direção e Motivação','Programação dos Trabalhos','Uso de Equipamentos','Cadeia Produtiva'];
   const expertRef = [75,75,75,75,75,75,75];
-  groupNames.forEach((g,i) => {
-    html += `<tr><td>${g}</td><td><strong>${scores[i] ?? '—'}%</strong></td><td>${expertRef[i]}%</td></tr>`;
-  });
-  html += '</table>';
 
-  // Tabela de importâncias Likert
-  html += '<h2>⚖️ Avaliação de Importância (Escala Likert)</h2><table><tr><th>#</th><th>Questão (resumo)</th><th>Importância (1–5)</th></tr>';
-  QUESTIONS.forEach((q, i) => {
-    const lv = likertAnswers[i] ?? '—';
-    const preview = q.length > 70 ? q.slice(0,70)+'…' : q;
-    html += `<tr><td>${i+1}</td><td>${preview}</td><td><strong>${lv}</strong></td></tr>`;
-  });
-  html += '</table>';
+  const starVal = selectedStar > 0 ? String(selectedStar) : '';
+  const perspectivaVal = document.querySelector('input[name="perspectiva"]:checked')?.value || '';
+  const comentario = document.getElementById('survey-comment')?.value?.trim() || '';
+  const feedbackPreenchido = selectedStar > 0 || perspectivaVal !== '' || comentario !== '';
 
+  const escolaridade = document.querySelector('input[name="escolaridade"]:checked')?.value || '';
+  const experiencia = document.getElementById('input-experiencia').value || '';
+  const areas = [...document.querySelectorAll('#cg-areas input[type=checkbox]:checked')].map(e=>e.value).join(', ') || '';
+  const setor = document.querySelector('input[name="setor"]:checked')?.value || '';
+  const cidade = document.getElementById('input-cidade').value || '';
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function strCell(v) { return '<Cell><Data ss:Type="String">' + esc(v) + '</Data></Cell>'; }
+  function numCell(v) { return '<Cell><Data ss:Type="Number">' + esc(v) + '</Data></Cell>'; }
+  function hdrRow() {
+    const cols = Array.from(arguments);
+    return '<Row ss:StyleID="header">' + cols.map(c => '<Cell><Data ss:Type="String">' + esc(c) + '</Data></Cell>').join('') + '</Row>';
+  }
+  function secRow(label) {
+    return '<Row ss:StyleID="section"><Cell ss:MergeAcross="3"><Data ss:Type="String">' + esc(label) + '</Data></Cell></Row>';
+  }
+  function blankRow() { return '<Row><Cell><Data ss:Type="String"> </Data></Cell></Row>'; }
+
+  let rows = '';
+
+  rows += '<Row ss:StyleID="title"><Cell ss:MergeAcross="3"><Data ss:Type="String">Diagnostico de Comportamento Lean - PPGEC/UFS</Data></Cell></Row>';
+  rows += '<Row><Cell ss:MergeAcross="3"><Data ss:Type="String">Paredes de Concreto Moldadas In Loco - Gerado em: ' + esc(now) + '</Data></Cell></Row>';
+  rows += blankRow();
+
+  rows += secRow('DADOS DO PARTICIPANTE');
+  rows += hdrRow('Campo','Resposta');
+  const participantData = [
+    ['Nome', userName], ['E-mail', userEmail], ['Formação', userRole],
+    ['Escolaridade', escolaridade], ['Experiência', experiencia + ' anos'],
+    ['Áreas de atuação', areas], ['Setor', setor], ['Cidade', cidade]
+  ];
+  participantData.forEach(function(row) { rows += '<Row>' + strCell(row[0]) + strCell(row[1]) + '</Row>'; });
+  rows += blankRow();
+
+  rows += secRow('RESULTADO GERAL');
+  rows += hdrRow('Indicador','Valor');
+  rows += '<Row>' + strCell('Pontuação Lean Geral') + numCell(rd.overall || 0) + '</Row>';
+  rows += '<Row>' + strCell('Classificação') + strCell(levelText || '') + '</Row>';
+  rows += blankRow();
+
+  rows += secRow('SCORE POR DIMENSAO');
+  rows += hdrRow('Dimensão','Participante (%)','Ref. Especialista (%)','Diferença (pp)');
+  groupNamesDisplay.forEach(function(g, i) {
+    const diff = (scores[i] || 0) - expertRef[i];
+    rows += '<Row>' + strCell(g) + numCell(scores[i] || 0) + numCell(expertRef[i]) + numCell(diff) + '</Row>';
+  });
+  rows += blankRow();
+
+  rows += secRow('RESPOSTAS POR QUESTAO');
+  rows += hdrRow('#','Grupo','Questão','Resposta');
+  QUESTIONS.forEach(function(q, i) {
+    const gi = getGroupIndex(i);
+    const resp = answers[i] === true ? 'Sim' : answers[i] === false ? 'Não' : '—';
+    rows += '<Row>' + numCell(i+1) + strCell(groupNamesDisplay[gi] || '') + strCell(q) + strCell(resp) + '</Row>';
+  });
+  rows += blankRow();
+
+
+  rows += secRow('AVALIACAO DE IMPORTANCIA (ESCALA LIKERT)');
+  rows += hdrRow('#','Grupo','Questão','Resposta (Sim/Não)','Importância (1-5)');
+  QUESTIONS.forEach(function(q, i) {
+    const gi = getGroupIndex(i);
+    const resp = answers[i] === true ? 'Sim' : answers[i] === false ? 'Não' : '—';
+    const lv = typeof likertAnswers !== 'undefined' ? (likertAnswers[i] || '—') : '—';
+    rows += '<Row>' + numCell(i+1) + strCell(groupNamesDisplay[gi] || '') + strCell(q) + strCell(resp) + strCell(String(lv)) + '</Row>';
+  });
+  rows += blankRow();
   if (includeDiagnosis) {
-    html += '<h2>💡 Diagnóstico e Recomendações de Melhoria</h2>';
-    const sorted = scores.map((s,i)=>({s,i})).sort((a,b)=>a.s-b.s).slice(0,3);
-    const rankLabels = ['1ª Prioridade','2ª Prioridade','3ª Prioridade'];
-    sorted.forEach(({s,i},rank) => {
-      const d = DIAGNOSES[i];
-      html += `<h3 style="color:#1a5276;margin-top:24px;">${rankLabels[rank]}: ${d.title} (${s}%)</h3>
-<p style="font-size:13px;color:#64748b;">${d.desc}</p>`;
-      d.recs.forEach(r => { html += `<div class="rec">${r}</div>`; });
+    rows += secRow('DIAGNOSTICO E RECOMENDACOES');
+    rows += hdrRow('Prioridade','Dimensão','Score (%)','Recomendação');
+    const sorted = scores.map(function(s,i){ return {s:s,i:i}; }).sort(function(a,b){ return a.s-b.s; }).slice(0,3);
+    const rankLabels = ['1a Prioridade','2a Prioridade','3a Prioridade'];
+    sorted.forEach(function(item, rank) {
+      const d = DIAGNOSES[item.i];
+      d.recs.forEach(function(r, ri) {
+        rows += '<Row>' + strCell(ri===0 ? rankLabels[rank] : '') + strCell(ri===0 ? d.title : '') + (ri===0 ? numCell(item.s) : strCell('')) + strCell(r) + '</Row>';
+      });
     });
+    rows += blankRow();
   }
 
-  html += `<div class="footer">Diagnóstico gerado pela ferramenta gamificada de comportamento enxuto — PPGEC/UFS.<br>
-Para fins de pesquisa científica. Dados tratados de forma confidencial conforme TCLE.</div>
-</body></html>`;
+  if (feedbackPreenchido) {
+    rows += secRow('FEEDBACK DO PARTICIPANTE');
+    rows += hdrRow('Campo','Resposta');
+    rows += '<Row>' + strCell('Avaliação (estrelas)') + strCell(starVal ? starVal + '/5' : '—') + '</Row>';
+    rows += '<Row>' + strCell('Perspectiva enxuta aprimorada?') + strCell(perspectivaVal || '—') + '</Row>';
+    rows += '<Row>' + strCell('Comentários') + strCell(comentario || '—') + '</Row>';
+  }
 
-  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>' +
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+    '<Styles>' +
+    '<Style ss:ID="title"><Font ss:Bold="1" ss:Size="14" ss:Color="#003366"/></Style>' +
+    '<Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#003366" ss:Pattern="Solid"/></Style>' +
+    '<Style ss:ID="section"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1a5276" ss:Pattern="Solid"/></Style>' +
+    '</Styles>' +
+    '<Worksheet ss:Name="Diagnostico Lean">' +
+    '<Table>' +
+    '<Column ss:Width="50"/><Column ss:Width="160"/><Column ss:Width="300"/><Column ss:Width="100"/><Column ss:Width="80"/>' +
+    rows +
+    '</Table></Worksheet></Workbook>';
+
+  const blob = new Blob([xml], {type:'application/vnd.ms-excel;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `diagnostico-lean-${userName.replace(/\s+/g,'-').toLowerCase()}.html`;
+  a.download = 'diagnostico-lean-' + userName.replace(/\s+/g,'-').toLowerCase() + '.xls';
   a.click();
   URL.revokeObjectURL(url);
 }
